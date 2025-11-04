@@ -7,8 +7,6 @@ networks:
 volumes:
   postgres_data:
   redis_data:
-  odoo_data:
-  chatwoot_data:
   botpress_data:
   n8n_data:
   portainer_data:
@@ -30,45 +28,12 @@ services:
       - smarter-net
 
   redis:
-    image: redis:latest
+    image: redis:7-alpine
     container_name: smarter-redis
     restart: always
-    command: redis-server --save 20 1 --loglevel warning
+    command: ["redis-server", "--save", "20", "1", "--loglevel", "warning"]
     volumes:
       - redis_data:/data
-    networks:
-      - smarter-net
-
-  odoo:
-    image: odoo:19.0
-    container_name: smarter-odoo
-    depends_on:
-      - postgres
-    restart: always
-    environment:
-      - HOST=postgres
-      - USER=postgres
-      - PASSWORD=smarter
-    volumes:
-      - odoo_data:/var/lib/odoo
-    networks:
-      - smarter-net
-
-  chatwoot:
-    image: chatwoot/chatwoot:latest
-    container_name: smarter-chatwoot
-    depends_on:
-      - postgres
-      - redis
-    environment:
-      - POSTGRES_HOST=postgres
-      - POSTGRES_USERNAME=postgres
-      - POSTGRES_PASSWORD=smarter
-      - REDIS_URL=redis://redis:6379
-      - FRONTEND_URL=https://chat.smarterbot.cl
-      - RAILS_ENV=production
-    volumes:
-      - chatwoot_data:/app/storage
     networks:
       - smarter-net
 
@@ -76,6 +41,8 @@ services:
     image: botpress/server:latest
     container_name: smarter-botpress
     restart: always
+    environment:
+      - BP_PRODUCTION=true
     ports:
       - "3002:3000"
     volumes:
@@ -93,11 +60,16 @@ services:
       - N8N_BASIC_AUTH_PASSWORD=smarter123
       - DB_TYPE=postgresdb
       - DB_POSTGRESDB_HOST=postgres
+      - DB_POSTGRESDB_PORT=5432
       - DB_POSTGRESDB_DATABASE=smarterdb
       - DB_POSTGRESDB_USER=postgres
       - DB_POSTGRESDB_PASSWORD=smarter
       - GENERIC_TIMEZONE=America/Santiago
-      - WEBHOOK_URL=https://n8n.smarterbot.cl
+      - WEBHOOK_URL=https://n8n.smarterbot.cl/
+    ports:
+      - "5678:5678"
+    depends_on:
+      - postgres
     volumes:
       - n8n_data:/home/node/.n8n
     networks:
