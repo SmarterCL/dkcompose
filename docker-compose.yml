@@ -1,0 +1,130 @@
+version: "3.9"
+
+networks:
+  smarter-net:
+    driver: bridge
+
+volumes:
+  postgres_data:
+  redis_data:
+  odoo_data:
+  chatwoot_data:
+  botpress_data:
+  n8n_data:
+  portainer_data:
+  caddy_data:
+  caddy_config:
+
+services:
+  postgres:
+    image: ankane/pgvector:latest
+    container_name: smarter-postgres
+    restart: always
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: smarter
+      POSTGRES_DB: smarterdb
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - smarter-net
+
+  redis:
+    image: redis:latest
+    container_name: smarter-redis
+    restart: always
+    command: redis-server --save 20 1 --loglevel warning
+    volumes:
+      - redis_data:/data
+    networks:
+      - smarter-net
+
+  odoo:
+    image: odoo:19.0
+    container_name: smarter-odoo
+    depends_on:
+      - postgres
+    restart: always
+    environment:
+      - HOST=postgres
+      - USER=postgres
+      - PASSWORD=smarter
+    volumes:
+      - odoo_data:/var/lib/odoo
+    networks:
+      - smarter-net
+
+  chatwoot:
+    image: chatwoot/chatwoot:latest
+    container_name: smarter-chatwoot
+    depends_on:
+      - postgres
+      - redis
+    environment:
+      - POSTGRES_HOST=postgres
+      - POSTGRES_USERNAME=postgres
+      - POSTGRES_PASSWORD=smarter
+      - REDIS_URL=redis://redis:6379
+      - FRONTEND_URL=https://chat.smarterbot.cl
+      - RAILS_ENV=production
+    volumes:
+      - chatwoot_data:/app/storage
+    networks:
+      - smarter-net
+
+  botpress:
+    image: botpress/server:latest
+    container_name: smarter-botpress
+    restart: always
+    ports:
+      - "3002:3000"
+    volumes:
+      - botpress_data:/botpress
+    networks:
+      - smarter-net
+
+  n8n:
+    image: n8nio/n8n:latest
+    container_name: smarter-n8n
+    restart: always
+    environment:
+      - N8N_BASIC_AUTH_ACTIVE=true
+      - N8N_BASIC_AUTH_USER=smarter
+      - N8N_BASIC_AUTH_PASSWORD=smarter123
+      - DB_TYPE=postgresdb
+      - DB_POSTGRESDB_HOST=postgres
+      - DB_POSTGRESDB_DATABASE=smarterdb
+      - DB_POSTGRESDB_USER=postgres
+      - DB_POSTGRESDB_PASSWORD=smarter
+      - GENERIC_TIMEZONE=America/Santiago
+      - WEBHOOK_URL=https://n8n.smarterbot.cl
+    volumes:
+      - n8n_data:/home/node/.n8n
+    networks:
+      - smarter-net
+
+  portainer:
+    image: portainer/portainer-ce:latest
+    container_name: smarter-portainer
+    restart: always
+    ports:
+      - "9000:9000"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - portainer_data:/data
+    networks:
+      - smarter-net
+
+  caddy:
+    image: caddy:latest
+    container_name: smarter-caddy
+    restart: always
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile
+      - caddy_data:/data
+      - caddy_config:/config
+    networks:
+      - smarter-net
