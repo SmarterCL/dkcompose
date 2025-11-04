@@ -12,76 +12,27 @@ volumes:
   caddy_config:
 
 services:
-  postgres:
-    image: ankane/pgvector:latest
-    container_name: smarter-postgres
-    restart: always
-    environment:
-      POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: smarter
-      POSTGRES_DB: smarterdb
-    volumes:
-      - postgres_data:/var/lib/postgresql/data
-    networks:
-      - smarter-net
-
-  redis:
-    image: redis:7-alpine
-    container_name: smarter-redis
-    restart: always
-    command: ["redis-server", "--save", "20", "1", "--loglevel", "warning"]
-    volumes:
-      - redis_data:/data
-    networks:
-      - smarter-net
-
   botpress:
     image: botpress/server:latest
     container_name: smarter-botpress
-    restart: always
-    environment:
-      - BP_PRODUCTION=true
     ports:
       - "3002:3000"
-    volumes:
-      - botpress_data:/botpress
     networks:
       - smarter-net
 
   n8n:
-    image: n8nio/n8n:latest
+    image: n8nio/n8n
     container_name: smarter-n8n
-    restart: always
-    environment:
-      - N8N_BASIC_AUTH_ACTIVE=true
-      - N8N_BASIC_AUTH_USER=smarter
-      - N8N_BASIC_AUTH_PASSWORD=smarter123
-      - DB_TYPE=postgresdb
-      - DB_POSTGRESDB_HOST=postgres
-      - DB_POSTGRESDB_PORT=5432
-      - DB_POSTGRESDB_DATABASE=smarterdb
-      - DB_POSTGRESDB_USER=postgres
-      - DB_POSTGRESDB_PASSWORD=smarter
-      - GENERIC_TIMEZONE=America/Santiago
-      - WEBHOOK_URL=https://n8n.smarterbot.cl/
     ports:
       - "5678:5678"
-    depends_on:
-      - postgres
-    volumes:
-      - n8n_data:/home/node/.n8n
     networks:
       - smarter-net
 
   portainer:
     image: portainer/portainer-ce:latest
     container_name: smarter-portainer
-    restart: always
     ports:
       - "9000:9000"
-    volumes:
-      - /var/run/docker.sock:/var/run/docker.sock
-      - portainer_data:/data
     networks:
       - smarter-net
 
