@@ -89,11 +89,12 @@ services:
     image: caddy:latest
     container_name: smarter-caddy
     restart: always
+    command: ["caddy", "run", "--config", "/srv/Caddyfile", "--adapter", "caddyfile"]
     ports:
       - "80:80"
       - "443:443"
     volumes:
-      - ./Caddyfile:/etc/caddy/Caddyfile
+      - ./Caddyfile:/srv/Caddyfile:ro
       - caddy_data:/data
       - caddy_config:/config
     networks:
