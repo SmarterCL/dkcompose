@@ -150,7 +150,7 @@ services:
       - "traefik.http.services.portainer.loadbalancer.server.port=9000"
 
   chatwoot:
-    image: chatwoot/chatwoot:latest
+    image: ghcr.io/chatwoot/chatwoot:latest
     container_name: smarter-chatwoot
     restart: always
     depends_on:
@@ -161,7 +161,7 @@ services:
       RAILS_ENV: production
       NODE_ENV: production
       FRONTEND_URL: https://chatwoot.smarterbot.cl
-      SECRET_KEY_BASE: smarter-super-key
+      SECRET_KEY_BASE: 00bfdfdb2402399fcf7ef0d2fde183b4fd42709666e65f337505c26e1b74c4f6ca38987355208007c4a165989d0d7dfef5e6a3a0b5c7aa8ca93c9e9226250278
       REDIS_URL: redis://smarter-redis:6379
       DATABASE_URL: postgres://chatwoot:chatwoot@smarter-postgres:5432/chatwoot
       RAILS_SERVE_STATIC_FILES: "true"
@@ -178,7 +178,7 @@ services:
       - "traefik.http.services.chatwoot.loadbalancer.server.port=3000"
 
   chatwoot-worker:
-    image: chatwoot/chatwoot:latest
+    image: ghcr.io/chatwoot/chatwoot:latest
     container_name: smarter-chatwoot-worker
     restart: always
     depends_on:
@@ -186,22 +186,22 @@ services:
     command: ["sh","-lc","bundle exec sidekiq"]
     environment:
       RAILS_ENV: production
-      SECRET_KEY_BASE: smarter-super-key
+      SECRET_KEY_BASE: 00bfdfdb2402399fcf7ef0d2fde183b4fd42709666e65f337505c26e1b74c4f6ca38987355208007c4a165989d0d7dfef5e6a3a0b5c7aa8ca93c9e9226250278
       REDIS_URL: redis://smarter-redis:6379
       DATABASE_URL: postgres://chatwoot:chatwoot@smarter-postgres:5432/chatwoot
     networks:
       - smarter-net
 
   chatwoot-scheduler:
-    image: chatwoot/chatwoot:latest
+    image: ghcr.io/chatwoot/chatwoot:latest
     container_name: smarter-chatwoot-scheduler
     restart: always
     depends_on:
       - chatwoot
-    command: ["sh","-lc","bundle exec whenever --update-crontab && cron -f"]
+    command: ["sh","-lc","bundle exec whenever --update-crontab && crond -f -l 2"]
     environment:
       RAILS_ENV: production
-      SECRET_KEY_BASE: smarter-super-key
+      SECRET_KEY_BASE: 00bfdfdb2402399fcf7ef0d2fde183b4fd42709666e65f337505c26e1b74c4f6ca38987355208007c4a165989d0d7dfef5e6a3a0b5c7aa8ca93c9e9226250278
       REDIS_URL: redis://smarter-redis:6379
       DATABASE_URL: postgres://chatwoot:chatwoot@smarter-postgres:5432/chatwoot
     networks:
