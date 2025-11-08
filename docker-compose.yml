@@ -1,52 +1,208 @@
+version: "3.9"
+
 networks:
   smarter-net:
     driver: bridge
+  dokploy-network:
+    external: true
 
 volumes:
   postgres_data:
   redis_data:
-  botpress_data:
   n8n_data:
   portainer_data:
-  caddy_data:
-  caddy_config:
+  botpress_data:
+  odoo_extra_addons:
+  chatwoot_data:
 
 services:
+  postgres:
+    image: ankane/pgvector:latest
+    container_name: smarter-postgres
+    restart: always
+    environment:
+      POSTGRES_USER: smarter
+      POSTGRES_PASSWORD: smarter
+      POSTGRES_DB: smarter
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U smarter -d smarter || exit 1"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - smarter-net
+
+  db-init-chatwoot:
+    image: postgres:16
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      PGPASSWORD: smarter
+    entrypoint: >
+      sh -lc "
+      psql -h smarter-postgres -U smarter -d smarter -v ON_ERROR_STOP=1 -c
+      \"DO $$
+      BEGIN
+        IF NOT EXISTS (SELECT FROM pg_catalog.pg_roles WHERE rolname = 'chatwoot') THEN
+          CREATE ROLE chatwoot LOGIN PASSWORD 'chatwoot';
+        END IF;
+        IF NOT EXISTS (SELECT FROM pg_database WHERE datname = 'chatwoot') THEN
+          CREATE DATABASE chatwoot OWNER chatwoot;
+        END IF;
+      END$$;\"
+      "
+    restart: "no"
+    networks:
+      - smarter-net
+
+  redis:
+    image: redis:7-alpine
+    container_name: smarter-redis
+    restart: always
+    command: ["redis-server","--save","20","1","--loglevel","warning"]
+    volumes:
+      - redis_data:/data
+    networks:
+      - smarter-net
+
+  odoo:
+    image: odoo:19
+    container_name: smarter-odoo
+    restart: always
+    depends_on:
+      - postgres
+    environment:
+      HOST: smarter-postgres
+      USER: smarter
+      PASSWORD: smarter
+    volumes:
+      - odoo_extra_addons:/mnt/extra-addons
+    networks:
+      - smarter-net
+      - dokploy-network
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.odoo.rule=Host(`odoo.smarterbot.cl`)"
+      - "traefik.http.routers.odoo.entrypoints=websecure"
+      - "traefik.http.routers.odoo.tls.certresolver=letsencrypt"
+      - "traefik.http.services.odoo.loadbalancer.server.port=8069"
+
+  n8n:
+    image: n8nio/n8n:latest
+    container_name: smarter-n8n
+    restart: always
+    environment:
+      DB_TYPE: postgresdb
+      DB_POSTGRESDB_HOST: smarter-postgres
+      DB_POSTGRESDB_DATABASE: smarter
+      DB_POSTGRESDB_USER: smarter
+      DB_POSTGRESDB_PASSWORD: smarter
+      GENERIC_TIMEZONE: America/Santiago
+      WEBHOOK_URL: https://n8n.smarterbot.cl/
+    volumes:
+      - n8n_data:/home/node/.n8n
+    networks:
+      - smarter-net
+      - dokploy-network
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.n8n.rule=Host(`n8n.smarterbot.cl`)"
+      - "traefik.http.routers.n8n.entrypoints=websecure"
+      - "traefik.http.routers.n8n.tls.certresolver=letsencrypt"
+      - "traefik.http.services.n8n.loadbalancer.server.port=5678"
+
   botpress:
     image: botpress/server:latest
     container_name: smarter-botpress
-    ports:
-      - "3002:3000"
+    restart: always
+    environment:
+      - BP_PRODUCTION=true
+    volumes:
+      - botpress_data:/botpress
     networks:
       - smarter-net
-
-  n8n:
-    image: n8nio/n8n
-    container_name: smarter-n8n
-    ports:
-      - "5678:5678"
-    networks:
-      - smarter-net
+      - dokploy-network
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.botpress.rule=Host(`chat.smarterbot.cl`)"
+      - "traefik.http.routers.botpress.entrypoints=websecure"
+      - "traefik.http.routers.botpress.tls.certresolver=letsencrypt"
+      - "traefik.http.services.botpress.loadbalancer.server.port=3000"
 
   portainer:
     image: portainer/portainer-ce:latest
     container_name: smarter-portainer
-    ports:
-      - "9000:9000"
+    restart: always
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - portainer_data:/data
+    networks:
+      - smarter-net
+      - dokploy-network
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.portainer.rule=Host(`portainer.smarterbot.cl`)"
+      - "traefik.http.routers.portainer.entrypoints=websecure"
+      - "traefik.http.routers.portainer.tls.certresolver=letsencrypt"
+      - "traefik.http.services.portainer.loadbalancer.server.port=9000"
+
+  chatwoot:
+    image: chatwoot/chatwoot:latest
+    container_name: smarter-chatwoot
+    restart: always
+    depends_on:
+      - postgres
+      - redis
+      - db-init-chatwoot
+    environment:
+      RAILS_ENV: production
+      NODE_ENV: production
+      FRONTEND_URL: https://chatwoot.smarterbot.cl
+      SECRET_KEY_BASE: smarter-super-key
+      REDIS_URL: redis://smarter-redis:6379
+      DATABASE_URL: postgres://chatwoot:chatwoot@smarter-postgres:5432/chatwoot
+      RAILS_SERVE_STATIC_FILES: "true"
+    volumes:
+      - chatwoot_data:/app/storage
+    networks:
+      - smarter-net
+      - dokploy-network
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.chatwoot.rule=Host(`chatwoot.smarterbot.cl`)"
+      - "traefik.http.routers.chatwoot.entrypoints=websecure"
+      - "traefik.http.routers.chatwoot.tls.certresolver=letsencrypt"
+      - "traefik.http.services.chatwoot.loadbalancer.server.port=3000"
+
+  chatwoot-worker:
+    image: chatwoot/chatwoot:latest
+    container_name: smarter-chatwoot-worker
+    restart: always
+    depends_on:
+      - chatwoot
+    command: ["sh","-lc","bundle exec sidekiq"]
+    environment:
+      RAILS_ENV: production
+      SECRET_KEY_BASE: smarter-super-key
+      REDIS_URL: redis://smarter-redis:6379
+      DATABASE_URL: postgres://chatwoot:chatwoot@smarter-postgres:5432/chatwoot
     networks:
       - smarter-net
 
-  caddy:
-    image: caddy:latest
-    container_name: smarter-caddy
+  chatwoot-scheduler:
+    image: chatwoot/chatwoot:latest
+    container_name: smarter-chatwoot-scheduler
     restart: always
-    command: ["caddy", "run", "--config", "/srv/Caddyfile", "--adapter", "caddyfile"]
-    ports:
-      - "8080:80"
-      - "8443:443"
-    volumes:
-      - ./Caddyfile:/srv/Caddyfile:ro
-      - caddy_data:/data
-      - caddy_config:/config
+    depends_on:
+      - chatwoot
+    command: ["sh","-lc","bundle exec whenever --update-crontab && cron -f"]
+    environment:
+      RAILS_ENV: production
+      SECRET_KEY_BASE: smarter-super-key
+      REDIS_URL: redis://smarter-redis:6379
+      DATABASE_URL: postgres://chatwoot:chatwoot@smarter-postgres:5432/chatwoot
     networks:
       - smarter-net
