@@ -150,7 +150,7 @@ services:
       - "traefik.http.services.portainer.loadbalancer.server.port=9000"
 
   chatwoot:
-    image: ghcr.io/chatwoot/chatwoot:v2.24.3
+    image: docker.io/chatwoot/chatwoot:2.8.0
     container_name: smarter-chatwoot
     restart: always
     depends_on:
@@ -178,7 +178,7 @@ services:
       - "traefik.http.services.chatwoot.loadbalancer.server.port=3000"
 
   chatwoot-worker:
-    image: ghcr.io/chatwoot/chatwoot:v2.24.3
+    image: docker.io/chatwoot/chatwoot:2.8.0
     container_name: smarter-chatwoot-worker
     restart: always
     depends_on:
@@ -193,7 +193,7 @@ services:
       - smarter-net
 
   chatwoot-scheduler:
-    image: ghcr.io/chatwoot/chatwoot:v2.24.3
+    image: docker.io/chatwoot/chatwoot:2.8.0
     container_name: smarter-chatwoot-scheduler
     restart: always
     depends_on:
