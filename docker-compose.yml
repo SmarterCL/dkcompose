@@ -14,6 +14,7 @@ volumes:
   botpress_data:
   odoo_extra_addons:
   chatwoot_data:
+  vault_data:
 
 services:
   postgres:
@@ -206,3 +207,80 @@ services:
       DATABASE_URL: postgres://chatwoot:chatwoot@smarter-postgres:5432/chatwoot
     networks:
       - smarter-net
+
+  # ---------------------------------------------
+  # Redpanda (Kafka-compatible) + Console
+  # ---------------------------------------------
+  redpanda:
+    image: docker.redpanda.com/redpandadata/redpanda:latest
+    container_name: smarter-redpanda
+    restart: always
+    command:
+      - redpanda
+      - start
+      - --overprovisioned
+      - --smp=1
+      - --memory=1G
+      - --reserve-memory=0M
+      - --set redpanda.auto_create_topics_enabled=true
+      - --advertise-kafka-addr=PLAINTEXT://smarter-redpanda:9092
+      - --kafka-addr=PLAINTEXT://0.0.0.0:9092
+      - --advertise-rpc-addr=smarter-redpanda:33145
+      - --rpc-addr=0.0.0.0:33145
+      - --mode=dev-container
+    ports:
+      - "9092:9092"
+      - "9644:9644"
+    networks:
+      - smarter-net
+
+  redpanda-console:
+    image: docker.redpanda.com/redpandadata/console:latest
+    container_name: smarter-redpanda-console
+    restart: always
+    environment:
+      KAFKA_BROKERS: smarter-redpanda:9092
+      KAFKA_TLS_ENABLED: "false"
+    depends_on:
+      - redpanda
+    networks:
+      - smarter-net
+      - dokploy-network
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.redpanda.rule=Host(`kafka.smarterbot.cl`)"
+      - "traefik.http.routers.redpanda.entrypoints=websecure"
+      - "traefik.http.routers.redpanda.tls.certresolver=letsencrypt"
+      - "traefik.http.services.redpanda.loadbalancer.server.port=8080"
+
+  # ---------------------------------------------
+  # Vault (Raft storage)
+  # ---------------------------------------------
+  vault:
+    image: hashicorp/vault:1.15
+    container_name: smarter-vault
+    restart: unless-stopped
+    cap_add:
+      - IPC_LOCK
+    environment:
+      VAULT_LOCAL_CONFIG: |
+        ui = true
+        listener "tcp" {
+          address = "0.0.0.0:8200"
+          tls_disable = 1
+        }
+        storage "raft" {
+          path = "/vault/data"
+        }
+        disable_mlock = true
+    volumes:
+      - vault_data:/vault/data
+    networks:
+      - smarter-net
+      - dokploy-network
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.vault.rule=Host(`vault.smarterbot.cl`)"
+      - "traefik.http.routers.vault.entrypoints=websecure"
+      - "traefik.http.routers.vault.tls.certresolver=letsencrypt"
+      - "traefik.http.services.vault.loadbalancer.server.port=8200"
