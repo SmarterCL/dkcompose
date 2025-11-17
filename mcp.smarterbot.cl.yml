@@ -24,5 +24,7 @@ services:
 networks:
   dokploy-network:
     external: true
+    name: dokploy-network
   smarter-net:
     external: true
+    name: dkcompose_smarter-net
