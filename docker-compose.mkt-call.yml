@@ -1,0 +1,72 @@
+version: "3.9"
+
+services:
+  mkt-blogbowl:
+    image: node:20
+    container_name: mkt-blogbowl
+    working_dir: /app
+    volumes:
+      - ../front/mkt.smarterbot.cl:/app
+    environment:
+      - NEXT_PUBLIC_SUPABASE_URL=${SUPABASE_URL}
+      - NEXT_PUBLIC_SUPABASE_ANON_KEY=${SUPABASE_ANON_KEY}
+    command: bash -lc "npm ci || npm install && (npm run start || npm run dev)"
+    ports:
+      - "3010:3010"
+    networks:
+      - smarter-net
+      - dokploy-network
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.mkt.rule=Host(`mkt.smarterbot.cl`)"
+      - "traefik.http.routers.mkt.entrypoints=websecure"
+      - "traefik.http.routers.mkt.tls.certresolver=letsencrypt"
+      - "traefik.http.services.mkt.loadbalancer.server.port=3010"
+
+  callcenter:
+    build: ../services/call.smarterbot.cl
+    container_name: smarter-callcenter
+    environment:
+      - NEXT_PUBLIC_SUPABASE_URL=${SUPABASE_URL}
+      - NEXT_PUBLIC_SUPABASE_ANON_KEY=${SUPABASE_ANON_KEY}
+      - SUPABASE_SERVICE_ROLE_KEY=${SUPABASE_SERVICE_ROLE_KEY}
+    ports:
+      - "3020:3020"
+    networks:
+      - smarter-net
+      - dokploy-network
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.call.rule=Host(`call.smarterbot.cl`)"
+      - "traefik.http.routers.call.entrypoints=websecure"
+      - "traefik.http.routers.call.tls.certresolver=letsencrypt"
+      - "traefik.http.services.call.loadbalancer.server.port=3020"
+
+  fulldaygo:
+    image: node:20
+    container_name: fulldaygo-marketplace
+    working_dir: /app
+    volumes:
+      - ../front/fulldaygo.smarterbot.cl:/app
+    environment:
+      - NEXT_PUBLIC_SUPABASE_URL=${SUPABASE_URL}
+      - NEXT_PUBLIC_SUPABASE_ANON_KEY=${SUPABASE_ANON_KEY}
+      - SUPABASE_SERVICE_ROLE_KEY=${SUPABASE_SERVICE_ROLE_KEY}
+    command: bash -lc "npm ci || npm install && (npm run start || npm run dev)"
+    ports:
+      - "3030:3030"
+    networks:
+      - smarter-net
+      - dokploy-network
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.fulldaygo.rule=Host(`fulldaygo.smarterbot.cl`)"
+      - "traefik.http.routers.fulldaygo.entrypoints=websecure"
+      - "traefik.http.routers.fulldaygo.tls.certresolver=letsencrypt"
+      - "traefik.http.services.fulldaygo.loadbalancer.server.port=3030"
+
+networks:
+  smarter-net:
+    external: true
+  dokploy-network:
+    external: true

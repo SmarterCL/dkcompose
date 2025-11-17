@@ -1,0 +1,84 @@
+version: "3.9"
+
+networks:
+  demo-net:
+    driver: bridge
+  dokploy-network:
+    external: true
+
+volumes:
+  demo_postgres:
+  demo_data:
+
+services:
+  # Demo PostgreSQL - Isolated database
+  demo-postgres:
+    image: postgres:16-alpine
+    container_name: demo-postgres
+    restart: always
+    environment:
+      POSTGRES_USER: demo
+      POSTGRES_PASSWORD: demo_secure_password_2025
+      POSTGRES_DB: demo_smarterbot
+    volumes:
+      - demo_postgres:/var/lib/postgresql/data
+      - ./demo-init.sql:/docker-entrypoint-initdb.d/init.sql:ro
+    networks:
+      - demo-net
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U demo"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  # Demo Backend - N8N instance for demo workflows
+  demo-n8n:
+    image: n8nio/n8n:latest
+    container_name: demo-n8n
+    restart: always
+    depends_on:
+      - demo-postgres
+    environment:
+      DB_TYPE: postgresdb
+      DB_POSTGRESDB_HOST: demo-postgres
+      DB_POSTGRESDB_DATABASE: demo_smarterbot
+      DB_POSTGRESDB_USER: demo
+      DB_POSTGRESDB_PASSWORD: demo_secure_password_2025
+      GENERIC_TIMEZONE: America/Santiago
+      WEBHOOK_URL: https://demo-n8n.smarterbot.cl/
+      N8N_BASIC_AUTH_ACTIVE: "false"
+      N8N_DIAGNOSTICS_ENABLED: "false"
+      EXECUTIONS_MODE: regular
+    volumes:
+      - demo_data:/home/node/.n8n
+      - ./demo-workflows:/demo-workflows:ro
+    networks:
+      - demo-net
+      - dokploy-network
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.demo-n8n.rule=Host(`demo-n8n.smarterbot.cl`)"
+      - "traefik.http.routers.demo-n8n.entrypoints=websecure"
+      - "traefik.http.routers.demo-n8n.tls.certresolver=letsencrypt"
+      - "traefik.http.services.demo-n8n.loadbalancer.server.port=5678"
+
+  # Demo Seeder - Populate fake data
+  demo-seeder:
+    image: postgres:16-alpine
+    container_name: demo-seeder
+    restart: "no"
+    depends_on:
+      demo-postgres:
+        condition: service_healthy
+    environment:
+      PGPASSWORD: demo_secure_password_2025
+    volumes:
+      - ./demo-seed.sql:/demo-seed.sql:ro
+    networks:
+      - demo-net
+    command: >
+      sh -c "
+        echo 'Seeding demo database...'
+        psql -h demo-postgres -U demo -d demo_smarterbot -f /demo-seed.sql
+        echo '✅ Demo data seeded successfully'
+      "

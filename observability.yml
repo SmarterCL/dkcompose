@@ -1,0 +1,163 @@
+version: "3.9"
+
+networks:
+  smarter-net:
+    driver: bridge
+  dokploy-network:
+    external: true
+
+volumes:
+  sentry_postgres:
+  sentry_data:
+  clickhouse_data:
+  otel_data:
+
+services:
+  # Sentry - Error Tracking & Performance Monitoring
+  sentry-postgres:
+    image: postgres:16-alpine
+    container_name: smarter-sentry-postgres
+    restart: always
+    environment:
+      POSTGRES_USER: sentry
+      POSTGRES_PASSWORD: sentry
+      POSTGRES_DB: sentry
+    volumes:
+      - sentry_postgres:/var/lib/postgresql/data
+    networks:
+      - smarter-net
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U sentry"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  sentry-redis:
+    image: redis:7-alpine
+    container_name: smarter-sentry-redis
+    restart: always
+    networks:
+      - smarter-net
+
+  sentry:
+    image: sentry:24.1
+    container_name: smarter-sentry
+    restart: always
+    depends_on:
+      - sentry-postgres
+      - sentry-redis
+    environment:
+      SENTRY_SECRET_KEY: "${SENTRY_SECRET_KEY}"
+      SENTRY_POSTGRES_HOST: sentry-postgres
+      SENTRY_DB_USER: sentry
+      SENTRY_DB_PASSWORD: sentry
+      SENTRY_REDIS_HOST: sentry-redis
+      SENTRY_REDIS_PORT: 6379
+    volumes:
+      - sentry_data:/var/lib/sentry/files
+    networks:
+      - smarter-net
+      - dokploy-network
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.sentry.rule=Host(`sentry.smarterbot.cl`)"
+      - "traefik.http.routers.sentry.entrypoints=websecure"
+      - "traefik.http.routers.sentry.tls.certresolver=letsencrypt"
+      - "traefik.http.services.sentry.loadbalancer.server.port=9000"
+
+  sentry-cron:
+    image: sentry:24.1
+    container_name: smarter-sentry-cron
+    restart: always
+    depends_on:
+      - sentry
+    environment:
+      SENTRY_SECRET_KEY: "${SENTRY_SECRET_KEY}"
+      SENTRY_POSTGRES_HOST: sentry-postgres
+      SENTRY_DB_USER: sentry
+      SENTRY_DB_PASSWORD: sentry
+      SENTRY_REDIS_HOST: sentry-redis
+    command: run cron
+    networks:
+      - smarter-net
+
+  sentry-worker:
+    image: sentry:24.1
+    container_name: smarter-sentry-worker
+    restart: always
+    depends_on:
+      - sentry
+    environment:
+      SENTRY_SECRET_KEY: "${SENTRY_SECRET_KEY}"
+      SENTRY_POSTGRES_HOST: sentry-postgres
+      SENTRY_DB_USER: sentry
+      SENTRY_DB_PASSWORD: sentry
+      SENTRY_REDIS_HOST: sentry-redis
+    command: run worker
+    networks:
+      - smarter-net
+
+  # ClickHouse - Time-series database for OpenTelemetry
+  clickhouse:
+    image: clickhouse/clickhouse-server:23.12-alpine
+    container_name: smarter-clickhouse
+    restart: always
+    environment:
+      CLICKHOUSE_DB: otel
+      CLICKHOUSE_USER: otel
+      CLICKHOUSE_PASSWORD: otel
+    volumes:
+      - clickhouse_data:/var/lib/clickhouse
+    networks:
+      - smarter-net
+    ulimits:
+      nofile:
+        soft: 262144
+        hard: 262144
+
+  # OpenTelemetry Collector - Unified telemetry pipeline
+  otel-collector:
+    image: otel/opentelemetry-collector-contrib:0.91.0
+    container_name: smarter-otel-collector
+    restart: always
+    command: ["--config=/etc/otel-collector-config.yaml"]
+    volumes:
+      - ./otel-collector-config.yaml:/etc/otel-collector-config.yaml:ro
+      - otel_data:/var/lib/otel
+    environment:
+      SENTRY_DSN: "${SENTRY_DSN}"
+      CLICKHOUSE_ENDPOINT: "clickhouse:9000"
+    networks:
+      - smarter-net
+      - dokploy-network
+    ports:
+      - "4317:4317"   # OTLP gRPC receiver
+      - "4318:4318"   # OTLP HTTP receiver
+      - "8888:8888"   # Prometheus metrics
+      - "13133:13133" # Health check
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.otel.rule=Host(`otel.smarterbot.cl`)"
+      - "traefik.http.routers.otel.entrypoints=websecure"
+      - "traefik.http.routers.otel.tls.certresolver=letsencrypt"
+      - "traefik.http.services.otel.loadbalancer.server.port=4318"
+
+  # Grafana - Observability dashboard
+  grafana:
+    image: grafana/grafana:10.2.3
+    container_name: smarter-grafana
+    restart: always
+    environment:
+      GF_SECURITY_ADMIN_PASSWORD: "${GRAFANA_PASSWORD}"
+      GF_INSTALL_PLUGINS: "grafana-clickhouse-datasource"
+    volumes:
+      - ./grafana-datasources.yaml:/etc/grafana/provisioning/datasources/datasources.yaml:ro
+    networks:
+      - smarter-net
+      - dokploy-network
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.grafana.rule=Host(`grafana.smarterbot.cl`)"
+      - "traefik.http.routers.grafana.entrypoints=websecure"
+      - "traefik.http.routers.grafana.tls.certresolver=letsencrypt"
+      - "traefik.http.services.grafana.loadbalancer.server.port=3000"

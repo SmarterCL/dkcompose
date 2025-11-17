@@ -1,0 +1,167 @@
+version: '3.8'
+
+# 🤖 N8N MCP Server - Convierte N8N en proveedor MCP
+# Permite que SmarterMCP controle workflows desde el agente
+
+services:
+  n8n-mcp-server:
+    image: node:20-alpine
+    container_name: n8n-mcp-server
+    restart: unless-stopped
+    
+    working_dir: /app
+    
+    environment:
+      # N8N Configuration
+      N8N_HOST: "${N8N_HOST:-n8n.smarterbot.cl}"
+      N8N_PROTOCOL: "${N8N_PROTOCOL:-https}"
+      N8N_API_KEY: "${N8N_API_KEY}"  # Obtener de Vault
+      
+      # MCP Server Configuration
+      MCP_SERVER_PORT: "${MCP_SERVER_PORT:-3100}"
+      MCP_SERVER_HOST: "0.0.0.0"
+      
+      # Logging
+      LOG_LEVEL: "${LOG_LEVEL:-info}"
+      
+    volumes:
+      - ./n8n-mcp-server:/app
+      - n8n-mcp-data:/data
+    
+    ports:
+      - "3100:3100"
+    
+    command: >
+      sh -c "
+        echo '📦 Installing n8n-mcp-server...' &&
+        npm install -g n8n-mcp-server &&
+        echo '✅ Installation complete' &&
+        echo '🚀 Starting MCP Server for N8N...' &&
+        n8n-mcp-server
+      "
+    
+    networks:
+      - smarter-network
+    
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:3100/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    
+    labels:
+      - "com.smarteros.service=n8n-mcp-server"
+      - "com.smarteros.tier=infrastructure"
+      - "com.smarteros.mcp-provider=true"
+
+  # N8N Instance (si no está ya corriendo)
+  n8n:
+    image: n8nio/n8n:latest
+    container_name: n8n
+    restart: unless-stopped
+    
+    environment:
+      # Basic Configuration
+      N8N_HOST: "${N8N_HOST:-n8n.smarterbot.cl}"
+      N8N_PORT: "5678"
+      N8N_PROTOCOL: "${N8N_PROTOCOL:-https}"
+      
+      # Security
+      N8N_BASIC_AUTH_ACTIVE: "true"
+      N8N_BASIC_AUTH_USER: "${N8N_BASIC_AUTH_USER}"
+      N8N_BASIC_AUTH_PASSWORD: "${N8N_BASIC_AUTH_PASSWORD}"
+      
+      # Encryption Key
+      N8N_ENCRYPTION_KEY: "${N8N_ENCRYPTION_KEY}"
+      
+      # Database (PostgreSQL recomendado para producción)
+      DB_TYPE: "postgresdb"
+      DB_POSTGRESDB_HOST: "postgres"
+      DB_POSTGRESDB_PORT: "5432"
+      DB_POSTGRESDB_DATABASE: "${N8N_DB_NAME:-n8n}"
+      DB_POSTGRESDB_USER: "${N8N_DB_USER:-n8n}"
+      DB_POSTGRESDB_PASSWORD: "${N8N_DB_PASSWORD}"
+      
+      # Webhooks
+      WEBHOOK_URL: "https://${N8N_HOST}/"
+      
+      # Execution
+      EXECUTIONS_PROCESS: "main"
+      EXECUTIONS_MODE: "regular"
+      
+      # Timezone
+      GENERIC_TIMEZONE: "America/Santiago"
+      TZ: "America/Santiago"
+      
+      # User Management
+      N8N_USER_MANAGEMENT_DISABLED: "false"
+      
+      # Community Nodes
+      N8N_COMMUNITY_PACKAGES_ENABLED: "true"
+      
+    volumes:
+      - n8n-data:/home/node/.n8n
+      - ./n8n-files:/files
+    
+    ports:
+      - "5678:5678"
+    
+    depends_on:
+      postgres:
+        condition: service_healthy
+    
+    networks:
+      - smarter-network
+    
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:5678/healthz"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+    
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.n8n.rule=Host(`${N8N_HOST}`)"
+      - "traefik.http.routers.n8n.entrypoints=websecure"
+      - "traefik.http.routers.n8n.tls.certresolver=letsencrypt"
+      - "traefik.http.services.n8n.loadbalancer.server.port=5678"
+
+  # PostgreSQL para N8N
+  postgres:
+    image: postgres:16-alpine
+    container_name: n8n-postgres
+    restart: unless-stopped
+    
+    environment:
+      POSTGRES_DB: "${N8N_DB_NAME:-n8n}"
+      POSTGRES_USER: "${N8N_DB_USER:-n8n}"
+      POSTGRES_PASSWORD: "${N8N_DB_PASSWORD}"
+      POSTGRES_INITDB_ARGS: "--encoding=UTF8 --locale=es_CL.UTF-8"
+      TZ: "America/Santiago"
+      
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    
+    networks:
+      - smarter-network
+    
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${N8N_DB_USER:-n8n}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  n8n-data:
+    driver: local
+  n8n-mcp-data:
+    driver: local
+  postgres-data:
+    driver: local
+
+networks:
+  smarter-network:
+    external: true
+    name: smarter-network

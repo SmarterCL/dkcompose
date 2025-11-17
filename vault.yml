@@ -1,0 +1,58 @@
+version: "3.9"
+
+networks:
+  smarter-net:
+    driver: bridge
+  dokploy-network:
+    external: true
+
+volumes:
+  vault_data:
+  vault_logs:
+
+services:
+  vault:
+    image: hashicorp/vault:1.15
+    container_name: smarter-vault
+    restart: always
+    cap_add:
+      - IPC_LOCK
+    environment:
+      VAULT_ADDR: "http://0.0.0.0:8200"
+      VAULT_API_ADDR: "http://vault.smarterbot.cl:8200"
+      VAULT_CLUSTER_ADDR: "https://vault.smarterbot.cl:8201"
+    volumes:
+      - vault_data:/vault/data
+      - vault_logs:/vault/logs
+      - ./vault-config.hcl:/vault/config/vault.hcl:ro
+    networks:
+      - smarter-net
+      - dokploy-network
+    command: server
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.vault.rule=Host(`vault.smarterbot.cl`)"
+      - "traefik.http.routers.vault.entrypoints=websecure"
+      - "traefik.http.routers.vault.tls.certresolver=letsencrypt"
+      - "traefik.http.services.vault.loadbalancer.server.port=8200"
+    healthcheck:
+      test: ["CMD", "vault", "status"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  vault-unsealer:
+    image: hashicorp/vault:1.15
+    container_name: smarter-vault-unsealer
+    restart: "no"
+    depends_on:
+      vault:
+        condition: service_healthy
+    environment:
+      VAULT_ADDR: "http://smarter-vault:8200"
+    volumes:
+      - vault_data:/vault/data
+      - ./vault-init.sh:/vault-init.sh:ro
+    networks:
+      - smarter-net
+    entrypoint: ["/bin/sh", "/vault-init.sh"]
