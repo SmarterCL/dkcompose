@@ -1,0 +1,25 @@
+version: '3.9'
+
+services:
+  mcp:
+    image: node:20-alpine
+    container_name: mcp-smarterbot
+    restart: unless-stopped
+    working_dir: /app
+    volumes:
+      - ../services/mcp.smarterbot.cl:/app
+    command: ["node", "server.js"]
+    env_file:
+      - ../services/mcp.smarterbot.cl/.env
+    networks:
+      - dokploy-network
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.mcp.rule=Host(`mcp.smarterbot.cl`)"
+      - "traefik.http.routers.mcp.entrypoints=websecure"
+      - "traefik.http.routers.mcp.tls.certresolver=letsencrypt"
+      - "traefik.http.services.mcp.loadbalancer.server.port=3100"
+
+networks:
+  dokploy-network:
+    external: true
