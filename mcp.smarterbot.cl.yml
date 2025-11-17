@@ -13,6 +13,7 @@ services:
       - ../services/mcp.smarterbot.cl/.env
     networks:
       - dokploy-network
+      - smarter-net
     labels:
       - "traefik.enable=true"
       - "traefik.http.routers.mcp.rule=Host(`mcp.smarterbot.cl`)"
@@ -22,4 +23,6 @@ services:
 
 networks:
   dokploy-network:
+    external: true
+  smarter-net:
     external: true
