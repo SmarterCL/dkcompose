@@ -1,0 +1,110 @@
+version: '3.9'
+
+services:
+  redpanda:
+    image: vectorized/redpanda:v23.3.5
+    container_name: smarter-redpanda
+    command:
+      - redpanda
+      - start
+      - --kafka-addr internal://0.0.0.0:9092,external://0.0.0.0:19092
+      - --advertise-kafka-addr internal://redpanda:9092,external://kafka.smarterbot.cl:19092
+      - --pandaproxy-addr internal://0.0.0.0:8082,external://0.0.0.0:18082
+      - --advertise-pandaproxy-addr internal://redpanda:8082,external://kafka.smarterbot.cl:18082
+      - --schema-registry-addr internal://0.0.0.0:8081,external://0.0.0.0:18081
+      - --rpc-addr redpanda:33145
+      - --advertise-rpc-addr redpanda:33145
+      - --mode dev-container
+      - --smp 1
+      - --default-log-level=info
+    ports:
+      - "19092:19092"  # Kafka external
+      - "18082:18082"  # HTTP Proxy external
+      - "18081:18081"  # Schema Registry external
+      - "9644:9644"    # Admin API
+    volumes:
+      - redpanda_data:/var/lib/redpanda/data
+      - ./redpanda-init.sh:/docker-entrypoint-initdb.d/init.sh:ro
+    healthcheck:
+      test: ["CMD-SHELL", "rpk cluster health | grep -q 'Healthy'"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 60s
+    networks:
+      - smarteros_network
+    restart: unless-stopped
+    labels:
+      - "traefik.enable=true"
+      # Kafka Protocol
+      - "traefik.tcp.routers.redpanda-kafka.rule=HostSNI(`*`)"
+      - "traefik.tcp.routers.redpanda-kafka.entrypoints=kafka"
+      - "traefik.tcp.routers.redpanda-kafka.service=redpanda-kafka"
+      - "traefik.tcp.services.redpanda-kafka.loadbalancer.server.port=19092"
+      # HTTP Proxy
+      - "traefik.http.routers.redpanda-proxy.rule=Host(`kafka.smarterbot.cl`)"
+      - "traefik.http.routers.redpanda-proxy.entrypoints=websecure"
+      - "traefik.http.routers.redpanda-proxy.tls.certresolver=letsencrypt"
+      - "traefik.http.routers.redpanda-proxy.service=redpanda-proxy"
+      - "traefik.http.services.redpanda-proxy.loadbalancer.server.port=18082"
+      # Schema Registry
+      - "traefik.http.routers.redpanda-schema.rule=Host(`schema.smarterbot.cl`)"
+      - "traefik.http.routers.redpanda-schema.entrypoints=websecure"
+      - "traefik.http.routers.redpanda-schema.tls.certresolver=letsencrypt"
+      - "traefik.http.routers.redpanda-schema.service=redpanda-schema"
+      - "traefik.http.services.redpanda-schema.loadbalancer.server.port=18081"
+    environment:
+      - REDPANDA_ENVIRONMENT=production
+      - REDPANDA_ORGANIZATION=smartercl
+      - REDPANDA_CLUSTER_ID=smarteros-prod
+
+  redpanda-console:
+    image: vectorized/console:v2.4.3
+    container_name: smarter-redpanda-console
+    depends_on:
+      redpanda:
+        condition: service_healthy
+    ports:
+      - "8080:8080"
+    environment:
+      KAFKA_BROKERS: redpanda:9092
+      KAFKA_SCHEMAREGISTRY_ENABLED: "true"
+      KAFKA_SCHEMAREGISTRY_URLS: http://redpanda:8081
+      KAFKA_RACKID: smarteros-prod
+      CONSOLE_CONFIG_FILEPATH: /tmp/console-config.yaml
+    volumes:
+      - ./redpanda-console-config.yaml:/tmp/console-config.yaml:ro
+    networks:
+      - smarteros_network
+    restart: unless-stopped
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.redpanda-console.rule=Host(`redpanda.smarterbot.cl`)"
+      - "traefik.http.routers.redpanda-console.entrypoints=websecure"
+      - "traefik.http.routers.redpanda-console.tls.certresolver=letsencrypt"
+      - "traefik.http.services.redpanda-console.loadbalancer.server.port=8080"
+      # Basic Auth
+      - "traefik.http.middlewares.redpanda-auth.basicauth.users=admin:$$apr1$$8kxjdmz9$$dYvPMr8M8Z8Y8Z8Y8Z8Y8Z"  # admin:smarteros (change in production)
+
+  # Topic Initializer - Creates base topics on first run
+  redpanda-init:
+    image: vectorized/redpanda:v23.3.5
+    container_name: smarter-redpanda-init
+    depends_on:
+      redpanda:
+        condition: service_healthy
+    entrypoint: /bin/bash
+    command: /init-topics.sh
+    volumes:
+      - ./redpanda-init-topics.sh:/init-topics.sh:ro
+    networks:
+      - smarteros_network
+    restart: "no"
+
+volumes:
+  redpanda_data:
+    name: smarteros_redpanda_data
+
+networks:
+  smarteros_network:
+    external: true

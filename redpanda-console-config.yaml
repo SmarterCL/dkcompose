@@ -1,0 +1,41 @@
+kafka:
+  brokers:
+    - redpanda:9092
+  schemaRegistry:
+    enabled: true
+    urls:
+      - http://redpanda:8081
+  protobuf:
+    enabled: false
+  sasl:
+    enabled: false
+  tls:
+    enabled: false
+
+console:
+  serveFrontend: true
+  topicDocumentation:
+    enabled: true
+    
+# Topic Configuration
+topic:
+  documentation:
+    'smarteros.events': 'Core SmarterOS event stream - all system events flow here'
+    'shopify.webhooks': 'Raw Shopify webhook payloads from storefront integrations'
+    'whatsapp.inbound': 'Incoming WhatsApp messages from customers'
+    'whatsapp.outbound': 'Outgoing WhatsApp messages to customers'
+    'n8n.automation.trigger': 'Triggers for N8N automation workflows'
+    'mcp.agent.actions': 'MCP agent actions and commands'
+    'odoo.business.events': 'Odoo business events (invoices, customers, orders)'
+    'clerk.auth.events': 'Clerk authentication events'
+    'analytics.events': 'Analytics tracking events'
+    'tenant.provisioning': 'Multi-tenant provisioning operations'
+
+# Consumer Group tracking
+connect:
+  enabled: false
+
+server:
+  basePath: /
+  setBasePathFromXForwardedPrefix: true
+  stripPrefix: false
