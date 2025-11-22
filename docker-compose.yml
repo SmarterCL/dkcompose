@@ -284,3 +284,26 @@ services:
       - "traefik.http.routers.vault.entrypoints=websecure"
       - "traefik.http.routers.vault.tls.certresolver=letsencrypt"
       - "traefik.http.services.vault.loadbalancer.server.port=8200"
+
+  api-smarterbot:
+    build: ../api.smarterbot.cl
+    container_name: api-smarterbot
+    restart: unless-stopped
+    ports:
+      - "8000:8000"
+    environment:
+      - SUPABASE_URL=${SUPABASE_URL}
+      - SUPABASE_SERVICE_ROLE=${SUPABASE_SERVICE_ROLE}
+      - RESEND_API_KEY=${RESEND_API_KEY}
+      - RESEND_FROM=${RESEND_FROM:-no-reply@smarterbot.cl}
+      - ADMIN_EMAIL=${ADMIN_EMAIL:-smarterbotcl@gmail.com}
+    networks:
+      - smarter-net
+      - dokploy-network
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.api-smarterbot.rule=Host(`api.smarterbot.cl`)"
+      - "traefik.http.routers.api-smarterbot.entrypoints=websecure"
+      - "traefik.http.routers.api-smarterbot.tls=true"
+      - "traefik.http.routers.api-smarterbot.tls.certresolver=letsencrypt"
+      - "traefik.http.services.api-smarterbot.loadbalancer.server.port=8000"
