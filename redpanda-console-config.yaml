@@ -21,9 +21,6 @@ console:
 topic:
   documentation:
     'smarteros.events': 'Core SmarterOS event stream - all system events flow here'
-    'shopify.webhooks': 'Raw Shopify webhook payloads from storefront integrations'
-    'whatsapp.inbound': 'Incoming WhatsApp messages from customers'
-    'whatsapp.outbound': 'Outgoing WhatsApp messages to customers'
     'n8n.automation.trigger': 'Triggers for N8N automation workflows'
     'mcp.agent.actions': 'MCP agent actions and commands'
     'odoo.business.events': 'Odoo business events (invoices, customers, orders)'

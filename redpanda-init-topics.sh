@@ -51,21 +51,6 @@ echo "🔷 Core Event Streams"
 create_topic "smarteros.events" "604800000" "delete"  # 7 days, delete old
 create_topic "smarteros.events.dlq" "2592000000" "delete"  # 30 days dead-letter queue
 
-# Shopify Integration Topics
-echo ""
-echo "🛒 Shopify Integration"
-create_topic "shopify.webhooks" "259200000" "delete"  # 3 days
-create_topic "shopify.orders" "2592000000" "delete"  # 30 days
-create_topic "shopify.products" "604800000" "compact"  # 7 days, compacted (keep latest)
-create_topic "shopify.inventory" "86400000" "compact"  # 1 day, compacted
-
-# WhatsApp Topics
-echo ""
-echo "💬 WhatsApp Messaging"
-create_topic "whatsapp.inbound" "259200000" "delete"  # 3 days
-create_topic "whatsapp.outbound" "259200000" "delete"  # 3 days
-create_topic "whatsapp.delivery" "604800000" "delete"  # 7 days (for analytics)
-
 # N8N Automation Topics
 echo ""
 echo "⚙️  N8N Automation"
