@@ -25,9 +25,9 @@ services:
     container_name: smarter-postgres
     restart: always
     environment:
-      POSTGRES_USER: smarter
-      POSTGRES_PASSWORD: smarter
-      POSTGRES_DB: smarter
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U smarter -d smarter || exit 1"]
       interval: 5s
@@ -44,7 +44,7 @@ services:
       postgres:
         condition: service_healthy
     environment:
-      PGPASSWORD: smarter
+      PGPASSWORD: ${POSTGRES_PASSWORD}
     entrypoint: >
       sh -lc "
       psql -h smarter-postgres -U smarter -d smarter -v ON_ERROR_STOP=1 -c
@@ -79,9 +79,9 @@ services:
     depends_on:
       - postgres
     environment:
-      HOST: smarter-postgres
-      USER: smarter
-      PASSWORD: smarter
+      HOST: ${ODOO_DB_HOST:-smarter-postgres}
+      USER: ${ODOO_DB_USER}
+      PASSWORD: ${ODOO_DB_PASSWORD}
     volumes:
       - odoo_extra_addons:/mnt/extra-addons
     networks:
@@ -106,12 +106,12 @@ services:
     restart: always
     environment:
       DB_TYPE: postgresdb
-      DB_POSTGRESDB_HOST: smarter-postgres
-      DB_POSTGRESDB_DATABASE: smarter
-      DB_POSTGRESDB_USER: smarter
-      DB_POSTGRESDB_PASSWORD: smarter
-      GENERIC_TIMEZONE: America/Santiago
-      WEBHOOK_URL: https://n8n.smarterbot.cl/
+      DB_POSTGRESDB_HOST: ${N8N_DB_HOST:-smarter-postgres}
+      DB_POSTGRESDB_DATABASE: ${N8N_DB_NAME}
+      DB_POSTGRESDB_USER: ${N8N_DB_USER}
+      DB_POSTGRESDB_PASSWORD: ${N8N_DB_PASSWORD}
+      GENERIC_TIMEZONE: ${N8N_TIMEZONE:-America/Santiago}
+      WEBHOOK_URL: ${N8N_WEBHOOK_URL:-https://n8n.smarterbot.cl/}
     volumes:
       - n8n_data:/home/node/.n8n
     networks:
@@ -136,6 +136,8 @@ services:
     restart: always
     environment:
       - BP_PRODUCTION=true
+      - BOTPRESS_LICENSE_KEY=${BOTPRESS_LICENSE_KEY}
+      - BOTPRESS_AUTH_SECRET=${BOTPRESS_AUTH_SECRET}
     volumes:
       - botpress_data:/botpress
     networks:
@@ -183,9 +185,9 @@ services:
       RAILS_ENV: production
       NODE_ENV: production
       FRONTEND_URL: https://crm.smarterbot.cl
-      SECRET_KEY_BASE: 00bfdfdb2402399fcf7ef0d2fde183b4fd42709666e65f337505c26e1b74c4f6ca38987355208007c4a165989d0d7dfef5e6a3a0b5c7aa8ca93c9e9226250278
-      REDIS_URL: redis://smarter-redis:6379
-      DATABASE_URL: postgres://chatwoot:chatwoot@smarter-postgres:5432/chatwoot
+      SECRET_KEY_BASE: ${CHATWOOT_SECRET_KEY_BASE}
+      REDIS_URL: ${CHATWOOT_REDIS_URL:-redis://smarter-redis:6379}
+      DATABASE_URL: ${CHATWOOT_DATABASE_URL}
       RAILS_SERVE_STATIC_FILES: "true"
     volumes:
       - chatwoot_data:/app/storage
@@ -214,9 +216,9 @@ services:
     command: ["sh","-lc","bundle exec sidekiq"]
     environment:
       RAILS_ENV: production
-      SECRET_KEY_BASE: 00bfdfdb2402399fcf7ef0d2fde183b4fd42709666e65f337505c26e1b74c4f6ca38987355208007c4a165989d0d7dfef5e6a3a0b5c7aa8ca93c9e9226250278
-      REDIS_URL: redis://smarter-redis:6379
-      DATABASE_URL: postgres://chatwoot:chatwoot@smarter-postgres:5432/chatwoot
+      SECRET_KEY_BASE: ${CHATWOOT_SECRET_KEY_BASE}
+      REDIS_URL: ${CHATWOOT_REDIS_URL:-redis://smarter-redis:6379}
+      DATABASE_URL: ${CHATWOOT_DATABASE_URL}
     networks:
       - smarter-net
     healthcheck:
@@ -235,9 +237,9 @@ services:
     command: ["sh","-lc","bundle exec whenever --update-crontab && crond -f -l 2"]
     environment:
       RAILS_ENV: production
-      SECRET_KEY_BASE: 00bfdfdb2402399fcf7ef0d2fde183b4fd42709666e65f337505c26e1b74c4f6ca38987355208007c4a165989d0d7dfef5e6a3a0b5c7aa8ca93c9e9226250278
-      REDIS_URL: redis://smarter-redis:6379
-      DATABASE_URL: postgres://chatwoot:chatwoot@smarter-postgres:5432/chatwoot
+      SECRET_KEY_BASE: ${CHATWOOT_SECRET_KEY_BASE}
+      REDIS_URL: ${CHATWOOT_REDIS_URL:-redis://smarter-redis:6379}
+      DATABASE_URL: ${CHATWOOT_DATABASE_URL}
     networks:
       - smarter-net
     healthcheck:
@@ -373,6 +375,12 @@ services:
     environment:
       MB_JETTY_PORT: 3000
       MB_SITE_URL: https://kpi.smarterbot.cl
+      MB_DB_TYPE: postgres
+      MB_DB_DBNAME: ${METABASE_DB_NAME}
+      MB_DB_PORT: ${METABASE_DB_PORT:-5432}
+      MB_DB_USER: ${METABASE_DB_USER}
+      MB_DB_PASS: ${METABASE_DB_PASSWORD}
+      MB_DB_HOST: ${METABASE_DB_HOST:-smarter-postgres}
     volumes:
       - metabase_data:/metabase-data
     networks:
@@ -397,6 +405,8 @@ services:
     restart: always
     volumes:
       - ./mcp-registry:/usr/share/nginx/html:ro
+    environment:
+      MCP_REGISTRY_TITLE: ${MCP_REGISTRY_TITLE:-SmarterOS MCP Registry}
     networks:
       - smarter-net
       - dokploy-network
