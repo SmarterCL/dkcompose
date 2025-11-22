@@ -91,6 +91,12 @@ services:
       - "traefik.http.routers.odoo.entrypoints=websecure"
       - "traefik.http.routers.odoo.tls.certresolver=letsencrypt"
       - "traefik.http.services.odoo.loadbalancer.server.port=8069"
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:8069/web/login || exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 5
+      start_period: 40s
 
   n8n:
     image: n8nio/n8n:latest
@@ -115,6 +121,12 @@ services:
       - "traefik.http.routers.n8n.entrypoints=websecure"
       - "traefik.http.routers.n8n.tls.certresolver=letsencrypt"
       - "traefik.http.services.n8n.loadbalancer.server.port=5678"
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:5678/ || exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 5
+      start_period: 40s
 
   botpress:
     image: botpress/server:latest
@@ -133,6 +145,12 @@ services:
       - "traefik.http.routers.botpress.entrypoints=websecure"
       - "traefik.http.routers.botpress.tls.certresolver=letsencrypt"
       - "traefik.http.services.botpress.loadbalancer.server.port=3000"
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:3000/ || exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
 
   portainer:
     image: portainer/portainer-ce:latest
@@ -178,6 +196,12 @@ services:
       - "traefik.http.routers.chatwoot.entrypoints=websecure"
       - "traefik.http.routers.chatwoot.tls.certresolver=letsencrypt"
       - "traefik.http.services.chatwoot.loadbalancer.server.port=3000"
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:3000/health || exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 5
+      start_period: 40s
 
   chatwoot-worker:
     image: ghcr.io/chatwoot/chatwoot:v2.10.1
@@ -193,6 +217,12 @@ services:
       DATABASE_URL: postgres://chatwoot:chatwoot@smarter-postgres:5432/chatwoot
     networks:
       - smarter-net
+    healthcheck:
+      test: ["CMD-SHELL", "pgrep -f sidekiq || exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
 
   chatwoot-scheduler:
     image: ghcr.io/chatwoot/chatwoot:v2.10.1
@@ -208,6 +238,12 @@ services:
       DATABASE_URL: postgres://chatwoot:chatwoot@smarter-postgres:5432/chatwoot
     networks:
       - smarter-net
+    healthcheck:
+      test: ["CMD-SHELL", "pgrep -f crond || exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 5
+      start_period: 40s
 
   # ---------------------------------------------
   # Redpanda (Kafka-compatible) + Console
@@ -285,6 +321,12 @@ services:
       - "traefik.http.routers.vault.entrypoints=websecure"
       - "traefik.http.routers.vault.tls.certresolver=letsencrypt"
       - "traefik.http.services.vault.loadbalancer.server.port=8200"
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:8200/v1/sys/health || exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 5
+      start_period: 50s
 
   api-smarterbot:
     build: ../api.smarterbot.cl
@@ -312,6 +354,12 @@ services:
       test: ["CMD-SHELL", "python -c 'import urllib.request,sys; urllib.request.urlopen(\"http://localhost:8000/health\");'"]
       interval: 30s
       timeout: 5s
+      healthcheck:
+        test: ["CMD-SHELL", "wget -qO- http://localhost:9644/metrics || exit 1"]
+        interval: 30s
+        timeout: 5s
+        retries: 5
+        start_period: 40s
       retries: 5
       start_period: 20s
 
